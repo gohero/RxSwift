@@ -19,3 +19,35 @@
  */
 
 //: [Next](@next)
+
+import Foundation
+import PlaygroundSupport
+import RxSwift
+
+PlaygroundPage.current.needsIndefiniteExecution = true
+
+let queue = DispatchQueue(
+    label: "Test",
+    attributes: .concurrent // commenting this to use a serial queue remove the issue
+)
+
+let scheduler: SchedulerType = ConcurrentDispatchQueueScheduler(queue: queue)
+
+func makeSequence(label: String, period: RxTimeInterval) -> Observable<Int> {
+    return Observable<Int>
+        .interval(period, scheduler: scheduler)
+
+        // note in this simplifed snippet, share is useless
+        .shareReplay(1) // commenting this remove the issue,
+}
+
+let _ = makeSequence(label: "main", period: 1.0)
+    .flatMapLatest { (index: Int) -> Observable<(Int, Int)> in
+        return makeSequence(label: "nested", period: 0.2).map { (index, $0) }
+    }
+    .take(10)
+    .mapWithIndex { ($1, $0.0, $0.1) }
+    .subscribe(
+        onNext: { print("\($0.0) emit (main: v\($0.1), nested: v\($0.2))") },
+        onCompleted: { print("completed") }
+)
